@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 — 2026-07-06
+
+### Added
+
+- Lua 5.5 support: mlua bumped to 0.11 and a `lua55` cargo feature
+  exposed, so the rock builds against Lua 5.5.
+
 ## 0.1.1 — 2026-07-06
 
 ### Fixed
