@@ -83,6 +83,49 @@ db:table("users"):where({ id = 1 }):delete()              -- affected count
 Identifiers (table and column names) are validated and quoted; values
 always travel as bound parameters.
 
+### Schema as code
+
+Define tables once; the schema becomes the source of truth for columns:
+
+```lua
+-- schemas/users.lua
+local schema = require("fredy.schema")
+
+return schema.table("users", {
+    id    = schema.integer{ primary = true },
+    name  = schema.text{ required = true },
+    age   = schema.integer{},
+    email = schema.text{ unique = true },
+})
+```
+
+```lua
+local users = require("schemas.users")
+
+-- generates the DDL for migrations
+migrations.run(db, {
+    { name = "0001_create_users", up = users:create_sql(db:adapter()) }
+})
+
+-- db:table(schema) validates every column reference before touching
+-- the database — a typo fails fast with a clear error
+db:table(users):where("age", ">=", 18):all()
+db:table(users):insert({ nmae = "ana" })
+--> column "nmae" does not exist in schema "users"
+```
+
+Relations are declared with `references` and become foreign keys:
+
+```lua
+local posts = schema.table("posts", {
+    id      = schema.integer{ primary = true },
+    user_id = schema.integer{ required = true, references = users },
+})
+```
+
+Column options: `primary`, `required` (NOT NULL), `unique`, `default`,
+`references`. Types: `integer`, `text`, `real`, `boolean`.
+
 ### Typed rows
 
 The LuaCATS equivalent of knex's `knex<User>('users')`: declare a row
@@ -195,12 +238,13 @@ Runnable scripts in [examples/](examples/): raw SQL and transactions
 1. ✅ Core: connect, query, execute, transactions, pooling
 2. ✅ Knex-style query builder (pure Lua)
 3. ✅ Programmatic migrations
-4. Streaming cursor (`db:each(...)`) for constant-memory result sets
-5. Schema-as-code (Drizzle-style table definitions → generated
-   migrations, per-table typing)
-6. Migrations CLI (`fredy-migrate`, SQL files)
-7. Async integration with ludi (handlers suspend instead of blocking)
-8. MySQL adapter
+4. ✅ Schema-as-code: column validation, DDL generation, relations
+5. Streaming cursor (`db:each(...)`) for constant-memory result sets
+6. Schema diffing (generate alter-table migrations from schema changes)
+   and LuaCATS codegen (schema → typed builder annotations)
+7. Migrations CLI (`fredy-migrate`, SQL files)
+8. Async integration with ludi (handlers suspend instead of blocking)
+9. MySQL adapter
 
 Design decisions are recorded in [docs/adr/](docs/adr/).
 
