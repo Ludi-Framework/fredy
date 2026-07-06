@@ -35,6 +35,7 @@
 ---@class fredy.Builder
 ---@field private _db fredy.Connection
 ---@field private _table string
+---@field private _schema fredy.Schema?
 ---@field private _postgres boolean
 ---@field private _columns string
 ---@field private _wheres string[]
@@ -62,10 +63,22 @@ local function quote(name)
     return '"' .. check_identifier(name) .. '"'
 end
 
-function Builder.new(db, table_name)
+--- Accepts a table name or a fredy.Schema (see fredy/schema.lua). With
+--- a schema, every column reference is validated against it.
+---@param table_or_schema string|fredy.Schema
+function Builder.new(db, table_or_schema)
+    local table_name, table_schema
+    if type(table_or_schema) == "table" then
+        table_schema = table_or_schema
+        table_name = table_schema.name
+    else
+        table_name = table_or_schema
+    end
+
     return setmetatable({
         _db = db,
         _table = check_identifier(table_name),
+        _schema = table_schema,
         _postgres = db:adapter() == "postgres",
         _columns = "*",
         _wheres = {},
@@ -74,6 +87,14 @@ function Builder.new(db, table_name)
         _limit = nil,
         _offset = nil
     }, Builder)
+end
+
+function Builder:_check_column(name)
+    if self._schema and not self._schema:has_column(name) then
+        error(("column %q does not exist in schema %q"):format(
+                  tostring(name), self._schema.name), 3)
+    end
+    return name
 end
 
 function Builder:_placeholder()
@@ -90,7 +111,9 @@ end
 ---@return self
 function Builder:select(columns)
     local quoted = {}
-    for _, column in ipairs(columns) do table.insert(quoted, quote(column)) end
+    for _, column in ipairs(columns) do
+        table.insert(quoted, quote(self:_check_column(column)))
+    end
     self._columns = table.concat(quoted, ", ")
     return self
 end
@@ -106,12 +129,13 @@ end
 function Builder:where(column_or_map, op_or_value, value)
     if type(column_or_map) == "table" then
         for column, v in pairs(column_or_map) do
-            table.insert(self._wheres, quote(column) .. " = " .. self:_push(v))
+            table.insert(self._wheres,
+                         quote(self:_check_column(column)) .. " = " .. self:_push(v))
         end
         return self
     end
 
-    local column = quote(column_or_map)
+    local column = quote(self:_check_column(column_or_map))
     local op
     if value == nil then
         op, value = "=", op_or_value
@@ -158,7 +182,8 @@ function Builder:order_by(column, direction)
     direction = (direction or "asc"):lower()
     assert(direction == "asc" or direction == "desc",
            "order direction must be 'asc' or 'desc'")
-    table.insert(self._order, quote(column) .. " " .. direction)
+    table.insert(self._order,
+                 quote(self:_check_column(column)) .. " " .. direction)
     return self
 end
 
@@ -215,7 +240,7 @@ end
 function Builder:insert(attrs)
     local columns, placeholders = {}, {}
     for column, value in pairs(attrs) do
-        table.insert(columns, quote(column))
+        table.insert(columns, quote(self:_check_column(column)))
         table.insert(placeholders, self:_push(value))
     end
     assert(#columns > 0, "insert requires at least one column")
@@ -240,7 +265,8 @@ function Builder:update(attrs)
 
     local sets = {}
     for column, value in pairs(attrs) do
-        table.insert(sets, quote(column) .. " = " .. self:_push(value))
+        table.insert(sets,
+                     quote(self:_check_column(column)) .. " = " .. self:_push(value))
     end
     assert(#sets > 0, "update requires at least one column")
 

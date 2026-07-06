@@ -57,12 +57,18 @@ function Connection:transaction(callback)
     return self._core:transaction(callback)
 end
 
---- Starts a knex-style query builder for a table. See fredy/builder.lua
---- (or the README "Typed rows" section) for per-table typed builders.
----@param table_name string
+--- Starts a knex-style query builder. Accepts a table name or a
+--- fredy.Schema — with a schema, column references are validated:
+---
+--- ```lua
+--- local users = require("schemas.users")  -- built with fredy.schema
+--- db:table(users):where("age", ">=", 18):all()
+--- db:table(users):where("aeg", ">=", 18)  -- error: column "aeg" ...
+--- ```
+---@param table_or_schema string|fredy.Schema
 ---@return fredy.Builder
-function Connection:table(table_name)
-    return Builder.new(self, table_name)
+function Connection:table(table_or_schema)
+    return Builder.new(self, table_or_schema)
 end
 
 ---@return '"postgres"'|'"sqlite"'
