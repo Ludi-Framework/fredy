@@ -14,8 +14,25 @@ impl LuaUserData for NullSentinel {}
 
 type AnyQuery<'q> = Query<'q, Any, AnyArguments<'q>>;
 
+/// Length of the parameter list as the highest integer key present.
+/// `#t`/raw_len are undefined on tables with nil holes, and a hole that
+/// goes unnoticed silently drops a parameter — so scan the real keys and
+/// let the nil check below catch holes deterministically on every Lua.
+fn params_len(params: &LuaTable) -> LuaResult<usize> {
+    let mut max = 0usize;
+    params.for_each(|key: LuaValue, _: LuaValue| {
+        if let LuaValue::Integer(i) = key {
+            if i > 0 && i as usize > max {
+                max = i as usize;
+            }
+        }
+        Ok(())
+    })?;
+    Ok(max)
+}
+
 pub fn bind_params<'q>(mut query: AnyQuery<'q>, params: &LuaTable) -> LuaResult<AnyQuery<'q>> {
-    for i in 1..=params.raw_len() {
+    for i in 1..=params_len(params)? {
         let value: LuaValue = params.raw_get(i)?;
         query = match value {
             LuaValue::Boolean(b) => query.bind(b),
