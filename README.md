@@ -10,10 +10,15 @@ local fredy = require("fredy")
 
 local db = fredy.connect({ adapter = "sqlite", path = "app.db" })
 
-db:execute("insert into eggs (label, weight) values (?, ?)", { "brown", 52.5 })
+local egg = db:table("eggs"):insert({ label = "brown", weight = 52.5 })
 
-local rows = db:query("select * from eggs where weight > ?", { 50 })
-for _, egg in ipairs(rows) do
+local heavy = db:table("eggs")
+    :where("weight", ">", 50)
+    :order_by("weight", "desc")
+    :limit(10)
+    :all()
+
+for _, egg in ipairs(heavy) do
     print(egg.label, egg.weight)
 end
 ```
@@ -48,15 +53,98 @@ local db = fredy.connect({ adapter = "sqlite", path = ":memory:" })
 `max_connections` to change; in-memory SQLite is pinned to 1 so all
 queries share the same database).
 
-### Queries
+### Query builder
+
+Knex-style, chainable, adapter-aware (placeholders and quoting are
+generated for the connected database):
+
+```lua
+-- insert returns the created row, including generated ids
+local user = db:table("users"):insert({ name = "ana", age = 28 })
+
+-- three where forms, combined with AND
+db:table("users")
+    :where({ active = 1 })                  -- equality map
+    :where("age", ">=", 18)                 -- column, operator, value
+    :where("name", "ana")                   -- column = value
+    :order_by("age", "desc")
+    :limit(10)
+    :offset(20)
+    :select({ "id", "name" })
+    :all()                                  -- or :first(), :count()
+
+db:table("users"):where("age", "in", { 28, 42 }):all()
+db:table("users"):where_raw("(age >= ? or vip = ?)", { 18, 1 }):all()
+
+db:table("users"):where({ id = 1 }):update({ age = 30 })  -- affected count
+db:table("users"):where({ id = 1 }):delete()              -- affected count
+```
+
+Identifiers (table and column names) are validated and quoted; values
+always travel as bound parameters.
+
+### Typed rows
+
+The LuaCATS equivalent of knex's `knex<User>('users')`: declare a row
+class and a builder subclass per table. Chainable methods return `self`,
+so the type survives the whole chain — editors with lua-language-server
+autocomplete row fields after `:first()`, `:all()` and `:insert()`.
+
+```lua
+---@class User
+---@field id integer
+---@field name string
+---@field age integer
+
+---@class UserBuilder: fredy.Builder
+---@field all fun(self: UserBuilder): User[]
+---@field first fun(self: UserBuilder): User?
+---@field insert fun(self: UserBuilder, attrs: table): User
+
+---@return UserBuilder
+local function Users() return db:table("users") --[[@as UserBuilder]] end
+
+local user = Users():where("age", ">=", 18):first()  -- typed as User?
+```
+
+Pure annotations — zero runtime cost. See [examples/typed.lua](examples/typed.lua).
+
+### Raw SQL
 
 ```lua
 local rows = db:query("select * from users where age > $1", { 18 })  -- postgres
 local rows = db:query("select * from users where age > ?", { 18 })   -- sqlite
 ```
 
-Placeholders follow the database's native syntax. `query` returns a list
-of row tables; `execute` returns the number of affected rows.
+Raw SQL uses each database's **native** placeholder syntax on purpose:
+rewriting SQL strings is unsafe (postgres' jsonb `?` operator, `?` inside
+literals), so fredy never touches your SQL. The query builder is the
+portable layer. `query` returns a list of row tables; `execute` returns
+the number of affected rows.
+
+### Migrations
+
+Ordered list, each migration applied once inside its own transaction,
+tracked in `_fredy_migrations`:
+
+```lua
+local migrations = require("fredy.migrations")
+
+migrations.run(db, {
+    { name = "0001_create_users",
+      up = "create table users (id integer primary key, name text not null)" },
+    { name = "0002_add_email", up = {
+        "alter table users add column email text",
+        "create index users_email on users (email)"
+    } }
+})
+
+migrations.status(db, list)  --> { applied = {...}, pending = {...} }
+```
+
+Relations are plain SQL (foreign keys in your DDL) — there is no schema
+file per table. A schema-as-code layer that generates migrations is on
+the roadmap.
 
 ### NULL
 
@@ -95,14 +183,24 @@ errors.
 Caveat: declare SQLite flag columns as `integer`, not `boolean` — sqlx's
 Any driver does not map SQLite's BOOLEAN type.
 
+## Examples
+
+Runnable scripts in [examples/](examples/): raw SQL and transactions
+(`basic.lua`), the query builder (`builder.lua`) and migrations
+(`migrations.lua`). From the repo root: `make dev`, then
+`lua5.4 examples/builder.lua`.
+
 ## Roadmap
 
 1. ✅ Core: connect, query, execute, transactions, pooling
-2. Streaming cursor (`db:each(...)`) for constant-memory result sets
-3. Query builder and models (pure Lua)
-4. Migrations (`fredy-migrate` CLI, SQL files, `_fredy_migrations` table)
-5. Async integration with ludi (handlers suspend instead of blocking)
-6. MySQL adapter
+2. ✅ Knex-style query builder (pure Lua)
+3. ✅ Programmatic migrations
+4. Streaming cursor (`db:each(...)`) for constant-memory result sets
+5. Schema-as-code (Drizzle-style table definitions → generated
+   migrations, per-table typing)
+6. Migrations CLI (`fredy-migrate`, SQL files)
+7. Async integration with ludi (handlers suspend instead of blocking)
+8. MySQL adapter
 
 Design decisions are recorded in [docs/adr/](docs/adr/).
 
