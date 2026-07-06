@@ -1,17 +1,5 @@
 local core = require("fredy_core")
-
----@alias fredy.Value boolean|number|string|userdata
----@alias fredy.Row table<string, boolean|number|string>
-
----@class fredy.Transaction
----@field query fun(self: fredy.Transaction, sql: string, params?: fredy.Value[]): fredy.Row[]
----@field execute fun(self: fredy.Transaction, sql: string, params?: fredy.Value[]): integer
-
----@class fredy.Connection
----@field query fun(self: fredy.Connection, sql: string, params?: fredy.Value[]): fredy.Row[]
----@field execute fun(self: fredy.Connection, sql: string, params?: fredy.Value[]): integer
----@field transaction fun(self: fredy.Connection, callback: fun(tx: fredy.Transaction))
----@field close fun(self: fredy.Connection)
+local Connection = require("fredy.connection")
 
 ---@class fredy.ConnectOptions
 ---@field adapter '"postgres"'|'"sqlite"'
@@ -35,7 +23,7 @@ fredy.NULL = core.NULL
 ---@param opts fredy.ConnectOptions
 ---@return fredy.Connection
 function fredy.connect(opts)
-    return core.connect(opts)
+    return Connection.new(core.connect(opts))
 end
 
 return fredy
