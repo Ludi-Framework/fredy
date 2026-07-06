@@ -1,0 +1,32 @@
+[package]
+name = "fredy"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "fredy_core"
+crate-type = ["cdylib"]
+
+# No Lua version is enabled by default: luarocks-build-rust-mlua passes the
+# right feature for the Lua that LuaRocks runs under. For a local build,
+# pass it yourself:
+#
+#   cargo build --release --features lua54
+#
+[features]
+lua51 = ["mlua/lua51"]
+lua52 = ["mlua/lua52"]
+lua53 = ["mlua/lua53"]
+lua54 = ["mlua/lua54"]
+luajit = ["mlua/luajit"]
+
+[dependencies]
+mlua = { version = "0.10", features = ["module"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "any",
+    "postgres",
+    "sqlite",
+] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+once_cell = "1"

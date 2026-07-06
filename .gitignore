@@ -1,0 +1,8 @@
+/target
+Cargo.lock
+lua_modules/
+*.rock
+*.so
+*.dylib
+*.dll
+*.db
