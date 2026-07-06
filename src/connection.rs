@@ -201,3 +201,53 @@ impl LuaUserData for Transaction {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_url_postgres_passthrough() {
+        let url = build_url("postgres", Some("postgres://u:p@h/db".into()), None).unwrap();
+        assert_eq!(url, "postgres://u:p@h/db");
+    }
+
+    #[test]
+    fn build_url_postgres_requires_url() {
+        assert!(build_url("postgres", None, None).is_err());
+    }
+
+    #[test]
+    fn build_url_sqlite_memory() {
+        let url = build_url("sqlite", None, Some(":memory:".into())).unwrap();
+        assert_eq!(url, "sqlite::memory:");
+    }
+
+    #[test]
+    fn build_url_sqlite_file() {
+        let url = build_url("sqlite", None, Some("data.db".into())).unwrap();
+        assert_eq!(url, "sqlite://data.db?mode=rwc");
+    }
+
+    #[test]
+    fn build_url_sqlite_requires_path() {
+        assert!(build_url("sqlite", None, None).is_err());
+    }
+
+    #[test]
+    fn build_url_unknown_adapter() {
+        let err = build_url("mongo", None, None).unwrap_err();
+        assert!(err.contains("unknown adapter 'mongo'"));
+    }
+
+    #[test]
+    fn memory_sqlite_forces_single_connection() {
+        assert_eq!(effective_max_connections("sqlite::memory:", Some(10)), 1);
+        assert_eq!(effective_max_connections("sqlite::memory:", None), 1);
+    }
+
+    #[test]
+    fn max_connections_defaults_to_five() {
+        assert_eq!(effective_max_connections("postgres://h/db", None), 5);
+        assert_eq!(effective_max_connections("postgres://h/db", Some(20)), 20);
+    }
+}
