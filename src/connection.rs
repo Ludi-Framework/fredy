@@ -12,6 +12,7 @@ use crate::values::{bind_params, rows_to_lua};
 
 pub struct Connection {
     pool: AnyPool,
+    adapter: String,
 }
 
 pub fn connect(_lua: &Lua, opts: LuaTable) -> LuaResult<Connection> {
@@ -35,7 +36,7 @@ pub fn connect(_lua: &Lua, opts: LuaTable) -> LuaResult<Connection> {
         )
         .map_err(LuaError::external)?;
 
-    Ok(Connection { pool })
+    Ok(Connection { pool, adapter })
 }
 
 impl LuaUserData for Connection {
@@ -105,6 +106,15 @@ impl LuaUserData for Connection {
         methods.add_method("close", |_, this, ()| {
             RT.block_on(this.pool.close());
             Ok(())
+        });
+
+        methods.add_method("adapter", |_, this, ()| Ok(this.adapter.clone()));
+
+        methods.add_method("pool_status", |lua, this, ()| {
+            let status = lua.create_table()?;
+            status.set("size", this.pool.size())?;
+            status.set("idle", this.pool.num_idle())?;
+            Ok(status)
         });
     }
 }
