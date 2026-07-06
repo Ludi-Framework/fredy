@@ -1,0 +1,10 @@
+return {
+    _all = {
+        helper = "spec/helper.lua",
+        lpath = "./?.lua;./?/init.lua",
+        cpath = "./?.so;./?.dylib"
+    },
+    default = {
+        verbose = true
+    }
+}
