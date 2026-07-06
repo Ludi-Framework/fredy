@@ -1,4 +1,4 @@
-# Fredy
+# Fredy 🐀
 
 A database library for Lua, powered by Rust. PostgreSQL and SQLite today;
 MySQL and more planned. Companion project of the
@@ -233,7 +233,7 @@ Runnable scripts in [examples/](examples/): raw SQL and transactions
 (`migrations.lua`). From the repo root: `make dev`, then
 `lua5.4 examples/builder.lua`.
 
-## Roadmap
+## Roadmap 🐀
 
 1. ✅ Core: connect, query, execute, transactions, pooling
 2. ✅ Knex-style query builder (pure Lua)
@@ -262,3 +262,8 @@ so `make dev` must run before `busted`.
 ## License
 
 MIT
+
+---
+
+*Named after Fredy the rat 🐀 — the first rat in production, and you can
+still hear him SQueaL in every query.*
