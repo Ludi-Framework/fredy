@@ -1,50 +1,17 @@
-use std::cell::RefCell;
+//! Pooled connection userdata: query, execute, transaction, close,
+//! plus adapter/pool introspection.
 
 use mlua::prelude::*;
+use sqlx::AnyPool;
 use sqlx::any::AnyPoolOptions;
-use sqlx::pool::PoolConnection;
-use sqlx::{Any, AnyPool};
 
+use crate::config::{build_url, effective_max_connections};
 use crate::runtime::RT;
-use crate::values::{bind_params, row_to_lua};
+use crate::transaction::Transaction;
+use crate::values::{bind_params, rows_to_lua};
 
 pub struct Connection {
     pool: AnyPool,
-}
-
-pub struct Transaction {
-    conn: RefCell<Option<PoolConnection<Any>>>,
-}
-
-fn build_url(
-    adapter: &str,
-    url: Option<String>,
-    path: Option<String>,
-) -> Result<String, String> {
-    match adapter {
-        "postgres" => url.ok_or_else(|| "postgres adapter requires 'url'".to_string()),
-        "sqlite" => {
-            let path = path.ok_or_else(|| "sqlite adapter requires 'path'".to_string())?;
-            if path == ":memory:" {
-                Ok("sqlite::memory:".to_string())
-            } else {
-                Ok(format!("sqlite://{path}?mode=rwc"))
-            }
-        }
-        other => Err(format!(
-            "unknown adapter '{other}' (supported: postgres, sqlite)"
-        )),
-    }
-}
-
-/// A pooled in-memory SQLite gives every connection its own private
-/// database; force a single connection so the data is actually shared.
-fn effective_max_connections(url: &str, requested: Option<u32>) -> u32 {
-    if url == "sqlite::memory:" {
-        1
-    } else {
-        requested.unwrap_or(5)
-    }
 }
 
 pub fn connect(_lua: &Lua, opts: LuaTable) -> LuaResult<Connection> {
@@ -69,14 +36,6 @@ pub fn connect(_lua: &Lua, opts: LuaTable) -> LuaResult<Connection> {
         .map_err(LuaError::external)?;
 
     Ok(Connection { pool })
-}
-
-fn rows_to_lua(lua: &Lua, rows: Vec<sqlx::any::AnyRow>) -> LuaResult<LuaTable> {
-    let out = lua.create_table_with_capacity(rows.len(), 0)?;
-    for (i, row) in rows.iter().enumerate() {
-        out.raw_set(i + 1, row_to_lua(lua, row)?)?;
-    }
-    Ok(out)
 }
 
 impl LuaUserData for Connection {
@@ -114,13 +73,11 @@ impl LuaUserData for Connection {
             RT.block_on(sqlx::query("BEGIN").execute(&mut *conn))
                 .map_err(LuaError::external)?;
 
-            let tx = lua.create_userdata(Transaction {
-                conn: RefCell::new(Some(conn)),
-            })?;
+            let tx = lua.create_userdata(Transaction::new(conn))?;
 
             let result = callback.call::<()>(&tx);
 
-            let conn = tx.borrow_mut::<Transaction>()?.conn.borrow_mut().take();
+            let conn = tx.borrow::<Transaction>()?.take();
             let Some(mut conn) = conn else {
                 return Err(LuaError::external("transaction connection lost"));
             };
@@ -149,105 +106,5 @@ impl LuaUserData for Connection {
             RT.block_on(this.pool.close());
             Ok(())
         });
-    }
-}
-
-impl Transaction {
-    fn with_conn<R>(
-        &self,
-        f: impl FnOnce(&mut PoolConnection<Any>) -> LuaResult<R>,
-    ) -> LuaResult<R> {
-        let mut guard = self.conn.borrow_mut();
-        let conn = guard
-            .as_mut()
-            .ok_or_else(|| LuaError::external("transaction already finished"))?;
-        f(conn)
-    }
-}
-
-impl LuaUserData for Transaction {
-    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method(
-            "query",
-            |lua, this, (sql, params): (String, Option<LuaTable>)| {
-                this.with_conn(|conn| {
-                    let mut query = sqlx::query(&sql);
-                    if let Some(params) = &params {
-                        query = bind_params(query, params)?;
-                    }
-                    let rows = RT
-                        .block_on(query.fetch_all(&mut **conn))
-                        .map_err(LuaError::external)?;
-                    rows_to_lua(lua, rows)
-                })
-            },
-        );
-
-        methods.add_method(
-            "execute",
-            |_, this, (sql, params): (String, Option<LuaTable>)| {
-                this.with_conn(|conn| {
-                    let mut query = sqlx::query(&sql);
-                    if let Some(params) = &params {
-                        query = bind_params(query, params)?;
-                    }
-                    let result = RT
-                        .block_on(query.execute(&mut **conn))
-                        .map_err(LuaError::external)?;
-                    Ok(result.rows_affected() as i64)
-                })
-            },
-        );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn build_url_postgres_passthrough() {
-        let url = build_url("postgres", Some("postgres://u:p@h/db".into()), None).unwrap();
-        assert_eq!(url, "postgres://u:p@h/db");
-    }
-
-    #[test]
-    fn build_url_postgres_requires_url() {
-        assert!(build_url("postgres", None, None).is_err());
-    }
-
-    #[test]
-    fn build_url_sqlite_memory() {
-        let url = build_url("sqlite", None, Some(":memory:".into())).unwrap();
-        assert_eq!(url, "sqlite::memory:");
-    }
-
-    #[test]
-    fn build_url_sqlite_file() {
-        let url = build_url("sqlite", None, Some("data.db".into())).unwrap();
-        assert_eq!(url, "sqlite://data.db?mode=rwc");
-    }
-
-    #[test]
-    fn build_url_sqlite_requires_path() {
-        assert!(build_url("sqlite", None, None).is_err());
-    }
-
-    #[test]
-    fn build_url_unknown_adapter() {
-        let err = build_url("mongo", None, None).unwrap_err();
-        assert!(err.contains("unknown adapter 'mongo'"));
-    }
-
-    #[test]
-    fn memory_sqlite_forces_single_connection() {
-        assert_eq!(effective_max_connections("sqlite::memory:", Some(10)), 1);
-        assert_eq!(effective_max_connections("sqlite::memory:", None), 1);
-    }
-
-    #[test]
-    fn max_connections_defaults_to_five() {
-        assert_eq!(effective_max_connections("postgres://h/db", None), 5);
-        assert_eq!(effective_max_connections("postgres://h/db", Some(20)), 20);
     }
 }

@@ -39,10 +39,18 @@ pub fn bind_params<'q>(mut query: AnyQuery<'q>, params: &LuaTable) -> LuaResult<
     Ok(query)
 }
 
+pub fn rows_to_lua(lua: &Lua, rows: Vec<AnyRow>) -> LuaResult<LuaTable> {
+    let out = lua.create_table_with_capacity(rows.len(), 0)?;
+    for (i, row) in rows.iter().enumerate() {
+        out.raw_set(i + 1, row_to_lua(lua, row)?)?;
+    }
+    Ok(out)
+}
+
 /// SQL NULL becomes `nil` (the column is simply absent from the row
 /// table). Integers stay integers; SQLite has no boolean type, so
 /// booleans come back as 0/1 there.
-pub fn row_to_lua(lua: &Lua, row: &AnyRow) -> LuaResult<LuaTable> {
+fn row_to_lua(lua: &Lua, row: &AnyRow) -> LuaResult<LuaTable> {
     let out = lua.create_table()?;
 
     for (i, column) in row.columns().iter().enumerate() {
