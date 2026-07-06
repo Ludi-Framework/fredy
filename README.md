@@ -261,7 +261,7 @@ so `make dev` must run before `busted`.
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ---
 
