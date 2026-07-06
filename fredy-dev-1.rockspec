@@ -42,7 +42,10 @@ build = {
    },
    install = {
       lua = {
-         ["fredy"] = "fredy/init.lua"
+         ["fredy"] = "fredy/init.lua",
+         ["fredy.connection"] = "fredy/connection.lua",
+         ["fredy.builder"] = "fredy/builder.lua",
+         ["fredy.migrations"] = "fredy/migrations.lua"
       }
    }
 }
