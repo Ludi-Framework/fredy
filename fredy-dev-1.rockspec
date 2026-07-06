@@ -45,6 +45,7 @@ build = {
          ["fredy"] = "fredy/init.lua",
          ["fredy.connection"] = "fredy/connection.lua",
          ["fredy.builder"] = "fredy/builder.lua",
+         ["fredy.schema"] = "fredy/schema.lua",
          ["fredy.migrations"] = "fredy/migrations.lua"
       }
    }
