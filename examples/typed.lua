@@ -34,7 +34,7 @@ local function Users()
 end
 
 local ana = Users():insert({ name = "ana", age = 28 })
-print(ana.id, ana.name)  -- editor autocompletes .id/.name/.age here
+print(ana.id, ana.name) -- editor autocompletes .id/.name/.age here
 
 Users():insert({ name = "bia", age = 17 })
 

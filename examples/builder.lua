@@ -23,12 +23,7 @@ db:table("users"):insert({ name = "carla", age = 35, active = 0 })
 db:table("users"):insert({ name = "duda", age = 42 })
 
 -- chainable filters
-local adults = db:table("users")
-    :where("age", ">=", 18)
-    :where({ active = 1 })
-    :order_by("age", "desc")
-    :limit(10)
-    :all()
+local adults = db:table("users"):where("age", ">=", 18):where({ active = 1 }):order_by("age", "desc"):limit(10):all()
 
 for _, user in ipairs(adults) do
     print(("%s (%d)"):format(user.name, user.age))

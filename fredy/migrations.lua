@@ -32,7 +32,9 @@ local function applied_set(db)
 end
 
 local function statements(up)
-    if type(up) == "string" then return { up } end
+    if type(up) == "string" then
+        return { up }
+    end
     return up
 end
 
@@ -58,7 +60,8 @@ function migrations.run(db, migration_list)
                 end
                 tx:execute(
                     "insert into _fredy_migrations (name, applied_at) values (?, ?)",
-                    { migration.name, os.date("!%Y-%m-%dT%H:%M:%SZ") })
+                    { migration.name, os.date("!%Y-%m-%dT%H:%M:%SZ") }
+                )
             end)
             table.insert(ran, migration.name)
         end

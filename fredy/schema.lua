@@ -19,8 +19,10 @@
 local schema = {}
 
 local function check_identifier(name)
-    assert(type(name) == "string" and name:match("^[%a_][%w_]*$"),
-           ("invalid SQL identifier: %q"):format(tostring(name)))
+    assert(
+        type(name) == "string" and name:match("^[%a_][%w_]*$"),
+        ("invalid SQL identifier: %q"):format(tostring(name))
+    )
     return name
 end
 
@@ -50,7 +52,7 @@ local function column(kind)
             required = opts.required or false,
             unique = opts.unique or false,
             default = opts.default,
-            references = opts.references
+            references = opts.references,
         }
     end
 end
@@ -64,7 +66,7 @@ schema.boolean = column("boolean")
 -- SQLite's BOOLEAN type (see docs/adr/0001-thin-rust-sqlx.md)
 local TYPE_SQL = {
     sqlite = { integer = "integer", text = "text", real = "real", boolean = "integer" },
-    postgres = { integer = "integer", text = "text", real = "double precision", boolean = "boolean" }
+    postgres = { integer = "integer", text = "text", real = "double precision", boolean = "boolean" },
 }
 
 local function default_literal(value, adapter)
@@ -72,7 +74,9 @@ local function default_literal(value, adapter)
         return "'" .. value:gsub("'", "''") .. "'"
     end
     if type(value) == "boolean" then
-        if adapter == "sqlite" then return value and "1" or "0" end
+        if adapter == "sqlite" then
+            return value and "1" or "0"
+        end
         return tostring(value)
     end
     return tostring(value)
@@ -90,18 +94,17 @@ Table.__index = Table
 ---@return fredy.Schema
 function schema.table(name, columns)
     check_identifier(name)
-    assert(type(columns) == "table" and next(columns) ~= nil,
-           "schema.table requires at least one column")
+    assert(type(columns) == "table" and next(columns) ~= nil, "schema.table requires at least one column")
 
     local primary_key
     for column_name, definition in pairs(columns) do
         check_identifier(column_name)
-        assert(type(definition) == "table" and definition.kind,
-               ("column %q must be built with schema.integer{}, schema.text{}, ..."):format(
-                   column_name))
+        assert(
+            type(definition) == "table" and definition.kind,
+            ("column %q must be built with schema.integer{}, schema.text{}, ..."):format(column_name)
+        )
         if definition.primary then
-            assert(not primary_key,
-                   ("schema %q has more than one primary key"):format(name))
+            assert(not primary_key, ("schema %q has more than one primary key"):format(name))
             primary_key = column_name
         end
     end
@@ -109,7 +112,7 @@ function schema.table(name, columns)
     return setmetatable({
         name = name,
         columns = columns,
-        primary_key = primary_key
+        primary_key = primary_key,
     }, Table)
 end
 
@@ -123,10 +126,14 @@ end
 function Table:column_order()
     local names = {}
     for column_name in pairs(self.columns) do
-        if column_name ~= self.primary_key then table.insert(names, column_name) end
+        if column_name ~= self.primary_key then
+            table.insert(names, column_name)
+        end
     end
     table.sort(names)
-    if self.primary_key then table.insert(names, 1, self.primary_key) end
+    if self.primary_key then
+        table.insert(names, 1, self.primary_key)
+    end
     return names
 end
 
@@ -150,19 +157,25 @@ function Table:create_sql(adapter)
             end
         else
             table.insert(parts, types[definition.kind])
-            if definition.primary then table.insert(parts, "primary key") end
-            if definition.required then table.insert(parts, "not null") end
-            if definition.unique then table.insert(parts, "unique") end
+            if definition.primary then
+                table.insert(parts, "primary key")
+            end
+            if definition.required then
+                table.insert(parts, "not null")
+            end
+            if definition.unique then
+                table.insert(parts, "unique")
+            end
             if definition.default ~= nil then
                 table.insert(parts, "default " .. default_literal(definition.default, adapter))
             end
             if definition.references then
                 local target = definition.references
-                assert(target.primary_key,
-                       ("schema %q referenced by %q has no primary key"):format(
-                           target.name, column_name))
-                table.insert(parts, ('references "%s" ("%s")'):format(
-                                 target.name, target.primary_key))
+                assert(
+                    target.primary_key,
+                    ("schema %q referenced by %q has no primary key"):format(target.name, column_name)
+                )
+                table.insert(parts, ('references "%s" ("%s")'):format(target.name, target.primary_key))
             end
         end
 

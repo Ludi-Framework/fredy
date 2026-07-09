@@ -70,7 +70,9 @@ impl LuaUserData for Connection {
         );
 
         methods.add_method("transaction", |lua, this, callback: LuaFunction| {
-            let mut conn = RT.block_on(this.pool.acquire()).map_err(LuaError::external)?;
+            let mut conn = RT
+                .block_on(this.pool.acquire())
+                .map_err(LuaError::external)?;
             RT.block_on(sqlx::query("BEGIN").execute(&mut *conn))
                 .map_err(LuaError::external)?;
 

@@ -44,7 +44,9 @@ describe("transaction", function()
 
     it("rejects using the tx handle after the transaction ends", function()
         local leaked
-        db:transaction(function(tx) leaked = tx end)
+        db:transaction(function(tx)
+            leaked = tx
+        end)
 
         assert.error_matches(function()
             leaked:execute("insert into eggs (label) values (?)", { "x" })

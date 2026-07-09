@@ -5,12 +5,14 @@ describe("migrations", function()
     local db
 
     local LIST = {
-        { name = "0001_create_eggs",
-          up = "create table eggs (id integer primary key, label text)" },
-        { name = "0002_create_boxes", up = {
-            "create table boxes (id integer primary key)",
-            "create index boxes_id on boxes (id)"
-        } }
+        { name = "0001_create_eggs", up = "create table eggs (id integer primary key, label text)" },
+        {
+            name = "0002_create_boxes",
+            up = {
+                "create table boxes (id integer primary key)",
+                "create index boxes_id on boxes (id)",
+            },
+        },
     }
 
     before_each(function()
@@ -48,20 +50,27 @@ describe("migrations", function()
     it("rolls back a failing migration without losing previous ones", function()
         local bad = {
             LIST[1],
-            { name = "0002_broken", up = {
-                "create table half (id integer)",
-                "this is not sql"
-            } }
+            {
+                name = "0002_broken",
+                up = {
+                    "create table half (id integer)",
+                    "this is not sql",
+                },
+            },
         }
 
-        assert.has_error(function() migrations.run(db, bad) end)
+        assert.has_error(function()
+            migrations.run(db, bad)
+        end)
 
         local status = migrations.status(db, bad)
         assert.are.same({ "0001_create_eggs" }, status.applied)
         assert.are.same({ "0002_broken" }, status.pending)
 
         -- the partial statement of the broken migration must be gone
-        assert.has_error(function() db:query("select * from half") end)
+        assert.has_error(function()
+            db:query("select * from half")
+        end)
     end)
 
     it("requires name and up", function()

@@ -20,7 +20,7 @@ describe("connection", function()
 
         local status = db:pool_status()
 
-        assert.are.equal(1, status.size)  -- in-memory sqlite pins to 1
+        assert.are.equal(1, status.size) -- in-memory sqlite pins to 1
         assert.is_true(status.idle <= status.size)
     end)
 
