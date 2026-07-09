@@ -47,15 +47,24 @@ local Builder = {}
 Builder.__index = Builder
 
 local OPERATORS = {
-    ["="] = true, ["<>"] = true, ["!="] = true,
-    ["<"] = true, ["<="] = true, [">"] = true, [">="] = true,
-    ["like"] = true, ["not like"] = true,
-    ["in"] = true, ["not in"] = true
+    ["="] = true,
+    ["<>"] = true,
+    ["!="] = true,
+    ["<"] = true,
+    ["<="] = true,
+    [">"] = true,
+    [">="] = true,
+    ["like"] = true,
+    ["not like"] = true,
+    ["in"] = true,
+    ["not in"] = true,
 }
 
 local function check_identifier(name)
-    assert(type(name) == "string" and name:match("^[%a_][%w_]*$"),
-           ("invalid SQL identifier: %q"):format(tostring(name)))
+    assert(
+        type(name) == "string" and name:match("^[%a_][%w_]*$"),
+        ("invalid SQL identifier: %q"):format(tostring(name))
+    )
     return name
 end
 
@@ -85,20 +94,21 @@ function Builder.new(db, table_or_schema)
         _params = {},
         _order = {},
         _limit = nil,
-        _offset = nil
+        _offset = nil,
     }, Builder)
 end
 
 function Builder:_check_column(name)
     if self._schema and not self._schema:has_column(name) then
-        error(("column %q does not exist in schema %q"):format(
-                  tostring(name), self._schema.name), 3)
+        error(("column %q does not exist in schema %q"):format(tostring(name), self._schema.name), 3)
     end
     return name
 end
 
 function Builder:_placeholder()
-    if self._postgres then return "$" .. #self._params end
+    if self._postgres then
+        return "$" .. #self._params
+    end
     return "?"
 end
 
@@ -129,8 +139,7 @@ end
 function Builder:where(column_or_map, op_or_value, value)
     if type(column_or_map) == "table" then
         for column, v in pairs(column_or_map) do
-            table.insert(self._wheres,
-                         quote(self:_check_column(column)) .. " = " .. self:_push(v))
+            table.insert(self._wheres, quote(self:_check_column(column)) .. " = " .. self:_push(v))
         end
         return self
     end
@@ -145,14 +154,12 @@ function Builder:where(column_or_map, op_or_value, value)
     end
 
     if op == "in" or op == "not in" then
-        assert(type(value) == "table" and #value > 0,
-               "'" .. op .. "' requires a non-empty list")
+        assert(type(value) == "table" and #value > 0, "'" .. op .. "' requires a non-empty list")
         local placeholders = {}
         for _, item in ipairs(value) do
             table.insert(placeholders, self:_push(item))
         end
-        table.insert(self._wheres, ("%s %s (%s)"):format(
-                         column, op, table.concat(placeholders, ", ")))
+        table.insert(self._wheres, ("%s %s (%s)"):format(column, op, table.concat(placeholders, ", ")))
     else
         table.insert(self._wheres, ("%s %s %s"):format(column, op, self:_push(value)))
     end
@@ -180,10 +187,8 @@ end
 ---@return self
 function Builder:order_by(column, direction)
     direction = (direction or "asc"):lower()
-    assert(direction == "asc" or direction == "desc",
-           "order direction must be 'asc' or 'desc'")
-    table.insert(self._order,
-                 quote(self:_check_column(column)) .. " " .. direction)
+    assert(direction == "asc" or direction == "desc", "order direction must be 'asc' or 'desc'")
+    table.insert(self._order, quote(self:_check_column(column)) .. " " .. direction)
     return self
 end
 
@@ -202,18 +207,23 @@ function Builder:offset(n)
 end
 
 function Builder:_where_clause()
-    if #self._wheres == 0 then return "" end
+    if #self._wheres == 0 then
+        return ""
+    end
     return " where " .. table.concat(self._wheres, " and ")
 end
 
 function Builder:_build_select(columns)
-    local sql = "select " .. (columns or self._columns) .. " from " ..
-                    quote(self._table) .. self:_where_clause()
+    local sql = "select " .. (columns or self._columns) .. " from " .. quote(self._table) .. self:_where_clause()
     if #self._order > 0 then
         sql = sql .. " order by " .. table.concat(self._order, ", ")
     end
-    if self._limit then sql = sql .. " limit " .. self._limit end
-    if self._offset then sql = sql .. " offset " .. self._offset end
+    if self._limit then
+        sql = sql .. " limit " .. self._limit
+    end
+    if self._offset then
+        sql = sql .. " offset " .. self._offset
+    end
     return sql, self._params
 end
 
@@ -246,8 +256,10 @@ function Builder:insert(attrs)
     assert(#columns > 0, "insert requires at least one column")
 
     local sql = ("insert into %s (%s) values (%s) returning *"):format(
-                    quote(self._table), table.concat(columns, ", "),
-                    table.concat(placeholders, ", "))
+        quote(self._table),
+        table.concat(columns, ", "),
+        table.concat(placeholders, ", ")
+    )
 
     return self._db:query(sql, self._params)[1]
 end
@@ -265,8 +277,7 @@ function Builder:update(attrs)
 
     local sets = {}
     for column, value in pairs(attrs) do
-        table.insert(sets,
-                     quote(self:_check_column(column)) .. " = " .. self:_push(value))
+        table.insert(sets, quote(self:_check_column(column)) .. " = " .. self:_push(value))
     end
     assert(#sets > 0, "update requires at least one column")
 
@@ -281,9 +292,7 @@ function Builder:update(attrs)
         table.insert(self._params, param)
     end
 
-    local sql = ("update %s set %s%s"):format(quote(self._table),
-                                              table.concat(sets, ", "),
-                                              where_clause)
+    local sql = ("update %s set %s%s"):format(quote(self._table), table.concat(sets, ", "), where_clause)
 
     return self._db:execute(sql, self._params)
 end

@@ -24,9 +24,7 @@ describe("query", function()
     end)
 
     it("inserts with parameters and reads rows back", function()
-        local affected = db:execute(
-            "insert into eggs (label, weight, fresh) values (?, ?, ?)",
-            { "brown", 52.5, true })
+        local affected = db:execute("insert into eggs (label, weight, fresh) values (?, ?, ?)", { "brown", 52.5, true })
 
         assert.are.equal(1, affected)
 
@@ -35,7 +33,7 @@ describe("query", function()
         assert.are.equal(1, #rows)
         assert.are.equal("brown", rows[1].label)
         assert.are.equal(52.5, rows[1].weight)
-        assert.are.equal(1, rows[1].fresh)  -- SQLite stores booleans as 0/1
+        assert.are.equal(1, rows[1].fresh) -- SQLite stores booleans as 0/1
     end)
 
     it("filters with parameters", function()
@@ -49,9 +47,7 @@ describe("query", function()
     end)
 
     it("roundtrips value types", function()
-        db:execute(
-            "insert into eggs (label, weight, fresh) values (?, ?, ?)",
-            { "unicode áçê 🥚", -12.75, false })
+        db:execute("insert into eggs (label, weight, fresh) values (?, ?, ?)", { "unicode áçê 🥚", -12.75, false })
 
         local row = db:query("select * from eggs")[1]
 
@@ -84,8 +80,7 @@ describe("query", function()
     end)
 
     it("writes SQL NULL via fredy.NULL and reads it back as nil", function()
-        db:execute("insert into eggs (label, notes) values (?, ?)",
-                   { "x", fredy.NULL })
+        db:execute("insert into eggs (label, notes) values (?, ?)", { "x", fredy.NULL })
 
         local rows = db:query("select label, notes from eggs")
 
@@ -95,8 +90,7 @@ describe("query", function()
 
     it("rejects nil parameters with a helpful message", function()
         assert.error_matches(function()
-            db:execute("insert into eggs (label, notes) values (?, ?)",
-                       { "x", nil, "y" })
+            db:execute("insert into eggs (label, notes) values (?, ?)", { "x", nil, "y" })
         end, "fredy.NULL")
     end)
 
@@ -126,7 +120,7 @@ describe("query", function()
             db:query("select * from eggs")
         end)
 
-        db = helper.open_db()  -- so after_each can close something
+        db = helper.open_db() -- so after_each can close something
     end)
 end)
 

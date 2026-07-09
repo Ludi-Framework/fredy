@@ -8,17 +8,22 @@ local migrations = require("fredy.migrations")
 local db = fredy.connect({ adapter = "sqlite", path = ":memory:" })
 
 local LIST = {
-    { name = "0001_create_users",
-      up = [[
+    {
+        name = "0001_create_users",
+        up = [[
           create table users (
               id integer primary key,
               name text not null
           )
-      ]] },
-    { name = "0002_add_email", up = {
-        "alter table users add column email text",
-        "create index users_email on users (email)"
-    } }
+      ]],
+    },
+    {
+        name = "0002_add_email",
+        up = {
+            "alter table users add column email text",
+            "create index users_email on users (email)",
+        },
+    },
 }
 
 local ran = migrations.run(db, LIST)
