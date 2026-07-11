@@ -5,22 +5,37 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Some steps shell out to bash (case, mv globs): pin it so the Windows
+# runners use Git Bash instead of their default PowerShell.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     strategy:
       fail-fast: false
+      # One native runner per OS/arch: binary rocks can't be cross-compiled
+      # (the backend links against the host Lua), so every architecture needs
+      # its own runner. GitHub provides arm64 images for all three OSes.
       matrix:
-        os: [ubuntu-latest, macos-latest]
         lua: ["5.4", "luajit"]
+        platform:
+          - { os: ubuntu-latest, arch: x86_64 }
+          - { os: ubuntu-24.04-arm, arch: arm64 }
+          - { os: macos-13, arch: x86_64 }
+          - { os: macos-latest, arch: arm64 }
+          - { os: windows-latest, arch: x86_64 }
+          - { os: windows-11-arm, arch: arm64 }
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform.os }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: leafo/gh-actions-lua@v11
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: ${{ matrix.lua }}
 
@@ -34,9 +49,22 @@ jobs:
       - name: Build binary rock
         run: luarocks make --pack-binary-rock fredy-dev-1.rockspec
 
+      # Rocks for different Lua versions share a filename (the .rock name
+      # only encodes the platform), so they would overwrite each other in
+      # the GitHub release. Suffix the variant to keep both.
+      - name: Add the Lua variant to the rock filename
+        run: |
+          case "${{ matrix.lua }}" in
+            luajit*) SUFFIX="${{ matrix.lua }}" ;;
+            *) SUFFIX="lua${{ matrix.lua }}" ;;
+          esac
+          for rock in *.rock; do
+            mv "$rock" "${rock%.rock}-$SUFFIX.rock"
+          done
+
       - uses: actions/upload-artifact@v4
         with:
-          name: rock-${{ matrix.os }}-lua${{ matrix.lua }}
+          name: rock-${{ matrix.platform.os }}-${{ matrix.platform.arch }}-lua${{ matrix.lua }}
           path: "*.rock"
 
   release:

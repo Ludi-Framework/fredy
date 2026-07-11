@@ -35,9 +35,10 @@ checking out of the box.
 luarocks install fredy
 ```
 
-Prebuilt binary rocks are published for Linux and macOS (Lua 5.4 and
-LuaJIT). On other platforms LuaRocks builds from source, which requires
-[Rust](https://rustup.rs).
+Prebuilt binary rocks are published for Linux, macOS and Windows (Lua 5.4
+and LuaJIT). Where no prebuilt rock matches, LuaRocks builds from source,
+which requires [Rust](https://rustup.rs) — and, on Windows, **LuaRocks
+3.11 or newer** (older releases can't run the Rust build backend there).
 
 ## Guide
 
@@ -258,6 +259,9 @@ make test             # cargo test + busted
 
 Lua specs run against real in-memory SQLite through the native module,
 so `make dev` must run before `busted`.
+
+On Windows, `make dev` works under Git Bash (it builds `fredy_core.dll`
+and copies it into place instead of symlinking a `.so`).
 
 ## License
 
