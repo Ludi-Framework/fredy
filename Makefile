@@ -8,9 +8,27 @@
 LUA ?= lua54
 LUA_BIN ?= lua5.4
 
+# The cdylib name and the dynamic-loader extension differ per platform:
+# Lua loads C modules as `fredy_core.so` on Linux/macOS and `fredy_core.dll`
+# on Windows, while cargo emits `libfredy_core.{so,dylib}` / `fredy_core.dll`.
+# On Windows a symlink needs privileges, so copy the artifact instead.
+ifeq ($(OS),Windows_NT)
+	CORE := target/release/fredy_core.dll
+	MODULE := fredy_core.dll
+	LINK := cp -f
+else
+	MODULE := fredy_core.so
+	LINK := ln -sf
+	ifeq ($(shell uname -s),Darwin)
+		CORE := target/release/libfredy_core.dylib
+	else
+		CORE := target/release/libfredy_core.so
+	endif
+endif
+
 dev:
 	cargo build --release --features $(LUA)
-	ln -sf target/release/libfredy_core.so fredy_core.so
+	$(LINK) $(CORE) $(MODULE)
 
 test: dev
 	cargo test --features $(LUA)
